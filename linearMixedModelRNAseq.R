@@ -3,9 +3,10 @@ library(doParallel)
 # cl = makeCluster(8)
 # registerDoParallel(cl)
 
-foldChangeTest = function(Matrix, object, test, set1, set2, y, onWhich, setSubA, setSubB, colData, design, outplot, allowParallel=FALSE){
+foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich, setSubA, setSubB, colData, design, outplot, allowParallel=FALSE){
 	# Matrix should be already normalized
 	# object "edger" or "deseq2"
+	# howMany groups are present in the dataset: 1 or 2
 	# set1 and set2 corresponds to the number  INDIVIDUALS per group
 	# test = FoldChanges Matrix; t-test or glm Regression ; variance Partition (Hoffman G. 2016 BMC Bioinformatics)
 	# onWhich = On which group to apply the analysis: set1, set2, both
@@ -47,41 +48,66 @@ foldChangeTest = function(Matrix, object, test, set1, set2, y, onWhich, setSubA,
 
 	numberGenes = dim(Matrix)[1]
 	numberSamples = dim(Matrix)[2]
-	cat(numberGenes, numberSamples, "\n")
+	cat(numberGenes, "Genes in", numberSamples, "samples", "\n")
 
 ############################################################
 	
-	returnFoldChangesPerIndv = function(matrixIn, numberGenes, numberSamples, set1, set2 ){
+	returnFoldChangesPerIndv = function(matrixIn, numberGenes, numberSamples, set1, set2, howMany){
 		
 		resultsMatrix = matrix(seq(1,numberGenes),  nrow = numberGenes, ncol = set1+set2)
 		rownames(resultsMatrix) = rownames(matrixIn)
 
-		for (col in 1:set1){
-		# print(col)
-			for(gene in 1:numberGenes){
-			# cat(col, gene, "\n")
-				valuePre = matrixIn[gene, col]
-				valuePost = matrixIn[gene, (col+set1)]
-				# cat(valuePre, valuePost, "\n")
-				# foldChange = abs((valuePost/valuePre)-1)
-				foldChange = log2(valuePost/valuePre)
-				resultsMatrix[gene,col] = foldChange
-			}
-
-		}
-
-		for (col in ((set1*2)+1):(numberSamples-set2)) {
-			for(gene in 1:numberGenes){
+		if (howMany > 1) { 
+			
+			resultsMatrix = matrix(seq(1,numberGenes),  nrow = numberGenes, ncol = set1+set2)
+			rownames(resultsMatrix) = rownames(matrixIn)
+			for (col in 1:set1){
+			# print(col)
+				for(gene in 1:numberGenes){
 				# cat(col, gene, "\n")
-				valuePre = matrixIn[gene, col]
-				valuePost = matrixIn[gene, (col+set2)]
-				# cat(valuePre, valuePost, "\n")
-				# foldChange = abs((valuePost/valuePre)-1)
-				foldChange = log2(valuePost/valuePre)
-				resultsMatrix[gene,col-set1] = foldChange
+					valuePre = matrixIn[gene, col]
+					valuePost = matrixIn[gene, (col+set1)]
+					# cat(valuePre, valuePost, "\n")
+					# foldChange = abs((valuePost/valuePre)-1)
+					foldChange = log2(valuePost/valuePre)
+					resultsMatrix[gene,col] = foldChange
+				}
+
 			}
-		
-		}
+
+			for (col in ((set1*2)+1):(numberSamples-set2)) {
+				for(gene in 1:numberGenes){
+					# cat(col, gene, "\n")
+					valuePre = matrixIn[gene, col]
+					valuePost = matrixIn[gene, (col+set2)]
+					# cat(valuePre, valuePost, "\n")
+					# foldChange = abs((valuePost/valuePre)-1)
+					foldChange = log2(valuePost/valuePre)
+					resultsMatrix[gene,col-set1] = foldChange
+				}
+			
+			}
+
+		} else {
+
+			resultsMatrix = matrix(seq(1,numberGenes),  nrow = numberGenes, ncol = set1)
+			rownames(resultsMatrix) = rownames(matrixIn)
+
+			for (col in 1:set1){
+			# print(col)
+				for(gene in 1:numberGenes){
+				# cat(col, gene, "\n")
+					valuePre = matrixIn[gene, col]
+					valuePost = matrixIn[gene, (col+set1)]
+					# cat(valuePre, valuePost, "\n")
+					# foldChange = abs((valuePost/valuePre)-1)
+					foldChange = log2(valuePost/valuePre)
+					resultsMatrix[gene,col] = foldChange
+				}
+
+			}
+
+		} 
 
 		resultsMatrix
 
@@ -134,7 +160,7 @@ foldChangeTest = function(Matrix, object, test, set1, set2, y, onWhich, setSubA,
 
 ############################################################
 	
-	returnGlm = function(foldChangesMatrix, y, onWhich, set1, set2){
+	returnGlm = function(foldChangesMatrix, y, set1, set2){
 
 		numberGenes = dim(foldChangesMatrix)[1]
 		numberIndiv = dim(foldChangesMatrix)[2]
@@ -148,7 +174,7 @@ foldChangeTest = function(Matrix, object, test, set1, set2, y, onWhich, setSubA,
 				cat(paste(gene, ",", sep=""))
 			}
 
-			geneGlm = glm(y ~ foldChangesMatrix[gene,])
+			geneGlm = glm(foldChangesMatrix[gene,] ~ y )
 			geneGlmConfint = suppressMessages(confint(geneGlm))
 			geneGlmSumm = summary(glm(y ~ foldChangesMatrix[gene,]))
 			beta = geneGlmSumm$coefficients[[2]]
@@ -191,18 +217,27 @@ foldChangeTest = function(Matrix, object, test, set1, set2, y, onWhich, setSubA,
 
 	if (test == "FoldChanges"){
 
-		returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2)
+		returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2, howMany=howMany)
 
 	} else if (test == "t-test"){
-
-		foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2)
-		returnTtest(foldChangesMatrix=foldChangesMatrix , set1=set1)
+		cat("Calculating t-test... \n")
+		if(howMany > 1){
+			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2)
+			returnTtest(foldChangesMatrix=foldChangesMatrix , set1=set1)
+		} else {
+			returnTtest(foldChangesMatrix=Matrix , set1=set1)
+		}
 		
 
 	} else if (test == "glm"){
+		cat("Calculating GLM... \n")
+		if(howMany > 1){
+			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2)
+			returnGlm(foldChangesMatrix, y, set1, set2)
+		} else {
+			returnGlm(Matrix, y, set1, set2)
 
-		foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2)
-		returnGlm(foldChangesMatrix, y, onWhich, set1, set2)
+		}
 
 
 	} else if (test == "variancePartition"){ ####### CHECK AND FIX
