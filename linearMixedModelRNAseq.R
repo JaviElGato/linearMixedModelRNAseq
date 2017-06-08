@@ -54,8 +54,6 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 	
 	returnFoldChangesPerIndv = function(matrixIn, numberGenes, numberSamples, set1, set2, howMany){
 		
-		resultsMatrix = matrix(seq(1,numberGenes),  nrow = numberGenes, ncol = set1+set2)
-		rownames(resultsMatrix) = rownames(matrixIn)
 
 		if (howMany > 1) { 
 			
