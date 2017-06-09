@@ -158,7 +158,7 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 
 ############################################################
 	
-	returnGlm = function(foldChangesMatrix, y, set1, set2){
+	returnGlm = function(foldChangesMatrix, y, set1, set2, design, colData){
 
 		numberGenes = dim(foldChangesMatrix)[1]
 		numberIndiv = dim(foldChangesMatrix)[2]
@@ -172,10 +172,18 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 				cat(paste(gene, ",", sep=""))
 			}
 
-			geneGlm = glm(foldChangesMatrix[gene,] ~ y )
+			designFormula = as.formula(paste("foldChangesMatrix[gene,] ~", design))
+			# print(designFormula)
+			geneGlm = glm(designFormula, data=colData, family="gaussian" )
+			# geneGlm = glm(foldChangesMatrix[gene,] ~ design, data=colData, family="gaussian" )
 			geneGlmConfint = suppressMessages(confint(geneGlm))
-			geneGlmSumm = summary(glm(y ~ foldChangesMatrix[gene,]))
-			beta = geneGlmSumm$coefficients[[2]]
+
+			geneGlmSumm = summary(geneGlm)
+			# geneGlmSumm = summary(glm(designFormula, data=colData, family="gaussian" ))
+			# geneGlmSumm = summary(glm(foldChangesMatrix[gene,] ~ design, data=colData, family="gaussian" ))
+			coefficients = length(geneGlmSumm$coefficients[,1])
+			# beta = geneGlmSumm$coefficients[[2]]
+			beta = geneGlmSumm$coefficients[,1][[coefficients]]
 			ci95L = geneGlmConfint[[2]]
 			ci95U = geneGlmConfint[[4]]
 			pvalue = geneGlmSumm$coefficients[[8]]
@@ -220,7 +228,7 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 	} else if (test == "t-test"){
 		cat("Calculating t-test... \n")
 		if(howMany > 1){
-			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2)
+			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2, howMany=howMany)
 			returnTtest(foldChangesMatrix=foldChangesMatrix , set1=set1)
 		} else {
 			returnTtest(foldChangesMatrix=Matrix , set1=set1)
@@ -230,10 +238,10 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 	} else if (test == "glm"){
 		cat("Calculating GLM... \n")
 		if(howMany > 1){
-			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2)
-			returnGlm(foldChangesMatrix, y, set1, set2)
+			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2, howMany=howMany)
+			returnGlm(foldChangesMatrix, y, set1, set2, design, colData=colData)
 		} else {
-			returnGlm(Matrix, y, set1, set2)
+			returnGlm(Matrix, y, set1, set2, design, colData=colData)
 
 		}
 
