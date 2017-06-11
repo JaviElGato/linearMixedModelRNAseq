@@ -158,12 +158,21 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 
 ############################################################
 	
-	returnGlm = function(foldChangesMatrix, y, set1, set2, design, colData){
+	##### FIX PVALUE TAKING
+	returnLm = function(foldChangesMatrix, y, set1, set2, design, colData){
 
 		numberGenes = dim(foldChangesMatrix)[1]
 		numberIndiv = dim(foldChangesMatrix)[2]
-		glm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
+		glm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), varExplained=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
 		rownames(glm_testResults) = rownames(foldChangesMatrix)
+
+		lmp = function (modelobject) {
+			   if (class(modelobject) != "lm") stop("Not an object of class 'lm' ")
+			   f <- summary(modelobject)$fstatistic
+			   p <- pf(f[1],f[2],f[3],lower.tail=F)
+			   attributes(p) <- NULL
+			   return(p)
+			}
 
 		for(gene in 1:numberGenes){
 
@@ -174,7 +183,8 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 
 			designFormula = as.formula(paste("foldChangesMatrix[gene,] ~", design))
 			# print(designFormula)
-			geneGlm = glm(designFormula, data=colData, family="gaussian" )
+			geneGlm = lm(designFormula, data=colData)
+			# geneGlm = glm(designFormula, data=colData, family="gaussian" )
 			# geneGlm = glm(foldChangesMatrix[gene,] ~ design, data=colData, family="gaussian" )
 			geneGlmConfint = suppressMessages(confint(geneGlm))
 
@@ -186,16 +196,21 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 			beta = geneGlmSumm$coefficients[,1][[coefficients]]
 			ci95L = geneGlmConfint[[2]]
 			ci95U = geneGlmConfint[[4]]
-			pvalue = geneGlmSumm$coefficients[[8]]
+			varianceExplained = geneGlmSumm$r.squared
 
-			glm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, pvalue=pvalue, pvalue.adj=0 )
+			# pvalue = geneGlmSumm$coefficients[,4][[coefficients]]
+			pvalue = lmp(geneGlm)
+
+			glm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, varExplained=varianceExplained, pvalue=pvalue, pvalue.adj=0 )
+
+			#testlmFull$adj.r.squared
 
 		}
 
 		cat("Done! \n")
 
 		pvaladj = p.adjust(glm_testResults$pvalue, method="BH")
-		glm_testResults[,5] =  pvaladj
+		glm_testResults[,6] =  pvaladj
 		
 		glm_testResults
 	}
@@ -235,13 +250,13 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 		}
 		
 
-	} else if (test == "glm"){
-		cat("Calculating GLM... \n")
+	} else if (test == "lm"){
+		cat("Calculating LM... \n")
 		if(howMany > 1){
 			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2, howMany=howMany)
-			returnGlm(foldChangesMatrix, y, set1, set2, design, colData=colData)
+			returnLm(foldChangesMatrix, y, set1, set2, design, colData=colData)
 		} else {
-			returnGlm(Matrix, y, set1, set2, design, colData=colData)
+			returnLm(Matrix, y, set1, set2, design, colData=colData)
 
 		}
 
