@@ -3,7 +3,7 @@ library(doParallel)
 # cl = makeCluster(8)
 # registerDoParallel(cl)
 
-foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich, setSubA, setSubB, colData, design, outplot, allowParallel=FALSE){
+foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich, setSubA, setSubB, colData, design, outplot, allowParallel=FALSE, designFull, designNull){
 	# Matrix should be already normalized
 	# object "edger" or "deseq2"
 	# howMany groups are present in the dataset: 1 or 2
@@ -158,7 +158,6 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 
 ############################################################
 	
-	##### FIX PVALUE TAKING
 	returnLm = function(foldChangesMatrix, y, set1, set2, design, colData){
 
 		numberGenes = dim(foldChangesMatrix)[1]
@@ -196,14 +195,14 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 			beta = geneGlmSumm$coefficients[,1][[coefficients]]
 			ci95L = geneGlmConfint[[2]]
 			ci95U = geneGlmConfint[[4]]
-			varianceExplained = geneGlmSumm$r.squared
+			varianceExplained = geneGlmSumm$r.squared # $adj.r.squared
 
 			# pvalue = geneGlmSumm$coefficients[,4][[coefficients]]
 			pvalue = lmp(geneGlm)
 
 			glm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, varExplained=varianceExplained, pvalue=pvalue, pvalue.adj=0 )
 
-			#testlmFull$adj.r.squared
+			
 
 		}
 
@@ -216,6 +215,62 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 	}
 
 ############################################################
+
+	returnLinearMixedModel = function(foldChangesMatrix, designNull, designFull, colData, ciMethod){
+
+		numberGenes = dim(foldChangesMatrix)[1]
+		numberIndiv = dim(foldChangesMatrix)[2]
+		lmm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
+		rownames(lmm_testResults) = rownames(foldChangesMatrix)
+
+
+		for(gene in 1:numberGenes){
+
+			toprint = gene %% 1000
+			if(toprint == 0){
+				cat(paste(gene, ",", sep=""))
+			}
+
+			designFormulaNull = as.formula(paste("foldChangesMatrix[gene,] ~", designNull))
+			designFormulaFull = as.formula(paste("foldChangesMatrix[gene,] ~", designFull))
+			# print(designFormula)
+			geneLmmNull = lmer(designFormulaNull, data=colData)
+			geneLmmFull = lmer(designFormulaFull, data=colData)
+			# geneGlm = glm(designFormula, data=colData, family="gaussian" )
+			# geneGlm = glm(foldChangesMatrix[gene,] ~ design, data=colData, family="gaussian" )
+			geneLmmConfint = suppressMessages(confint(geneLmmFull, method=ciMethod))
+			cis = length(geneLmmConfint[,1])
+
+			geneLmmSumm = summary(geneLmmFull)
+			# geneGlmSumm = summary(glm(designFormula, data=colData, family="gaussian" ))
+			# geneGlmSumm = summary(glm(foldChangesMatrix[gene,] ~ design, data=colData, family="gaussian" ))
+			coefficients = length(geneLmmSumm$coefficients[,1])
+			# beta = geneGlmSumm$coefficients[[2]]
+			beta = geneLmmSumm$coefficients[,1][[coefficients]]
+
+			ci95L = geneLmmConfint[,1][[cis]]
+			ci95U = geneLmmConfint[,2][[cis]]
+			
+			# pvalue = geneGlmSumm$coefficients[,4][[coefficients]]
+			geneLmmAnova = suppressMessages(anova(geneLmmNull, geneLmmFull))
+			pvalue = geneLmmAnova[[8]][2]
+			
+			
+
+			lmm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, pvalue=pvalue, pvalue.adj=0 )
+
+			
+
+		}
+
+		cat("Done! \n")
+
+		pvaladj = p.adjust(lmm_testResults$pvalue, method="BH")
+		lmm_testResults[,5] =  pvaladj
+		
+		lmm_testResults
+	}
+
 
 ############################################################
 
@@ -290,6 +345,17 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 		}
 
 
+	} else if (test == "lmm"){
+		cat("Calculating LMM... \n")
+
+		if(howMany > 1){
+			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2, howMany=howMany)
+			returnLinearMixedModel(foldChangesMatrix, designNull, designFull, colData, ciMethod="Wald")
+		} else {
+			returnLinearMixedModel(Matrix, designNull, designFull, colData, ciMethod="Wald")
+		}
+
+		
 	}
 
 
