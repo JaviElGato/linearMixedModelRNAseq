@@ -1,5 +1,6 @@
 library(variancePartition)
 library(doParallel)
+library(lme4)
 # cl = makeCluster(8)
 # registerDoParallel(cl)
 
@@ -17,7 +18,7 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 	# outplot = name of Variance Explained Plot from variancePartition
 
 	if(allowParallel){
-		cl = makeCluster(8)
+		cl = makeCluster(2)
 		registerDoParallel(cl)
 	}
 
