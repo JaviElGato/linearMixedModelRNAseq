@@ -6,7 +6,7 @@ library(lme4)
 
 foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich, setSubA, setSubB, colData, design, outplot, allowParallel=FALSE, designFull, designNull){
 	# Matrix should be already normalized
-	# object "edger" or "deseq2"
+	# object "edger", "deseq2", "normCPM"
 	# howMany groups are present in the dataset: 1 or 2
 	# set1 and set2 corresponds to the number  INDIVIDUALS per group
 	# test = FoldChanges Matrix; t-test or glm Regression ; variance Partition (Hoffman G. 2016 BMC Bioinformatics)
@@ -44,6 +44,9 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 		genesToKeep = rowSums(fpm(Matrix) > 1 ) >= 1 * ncol(Matrix)
 		# Compute Log2 Fragments per million
 		Matrix = log2(fpm(Matrix)[genesToKeep,] + 1)
+
+	} else if ( object == "normCPM"){
+		cat("object: Matrix of normalized CPM\n")
 
 	}
 
@@ -226,8 +229,8 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 
 
 		for(gene in 1:numberGenes){
-
-			toprint = gene %% 1000
+			# cat(paste(gene, ",", sep=""))
+			toprint = gene %% 100
 			if(toprint == 0){
 				cat(paste(gene, ",", sep=""))
 			}
