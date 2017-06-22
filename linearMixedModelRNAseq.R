@@ -18,7 +18,7 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 	# outplot = name of Variance Explained Plot from variancePartition
 
 	if(allowParallel){
-		cl = makeCluster(2)
+		cl = makeCluster(4)
 		registerDoParallel(cl)
 	}
 
@@ -224,7 +224,7 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 
 		numberGenes = dim(foldChangesMatrix)[1]
 		numberIndiv = dim(foldChangesMatrix)[2]
-		lmm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
+		lmm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), nullAIC=rep(1,numberGenes), fullAIC=rep(1,numberGenes), diffAIC=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
 		rownames(lmm_testResults) = rownames(foldChangesMatrix)
 
 
@@ -257,20 +257,21 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 			
 			# pvalue = geneGlmSumm$coefficients[,4][[coefficients]]
 			geneLmmAnova = suppressMessages(anova(geneLmmNull, geneLmmFull))
+			null_AIC = geneLmmAnova$AIC[1]
+			full_AIC = geneLmmAnova$AIC[2]
+			diff_AIC = abs(null_AIC - full_AIC)
 			pvalue = geneLmmAnova[[8]][2]
 			
 			
-
-			lmm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, pvalue=pvalue, pvalue.adj=0 )
-
-			
+			lmm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, nullAIC=null_AIC, fullAIC=full_AIC, diffAIC=diff_AIC, pvalue=pvalue, pvalue.adj=0 )
+		
 
 		}
 
 		cat("Done! \n")
 
 		pvaladj = p.adjust(lmm_testResults$pvalue, method="BH")
-		lmm_testResults[,5] =  pvaladj
+		lmm_testResults[,8] =  pvaladj
 		
 		lmm_testResults
 	}
