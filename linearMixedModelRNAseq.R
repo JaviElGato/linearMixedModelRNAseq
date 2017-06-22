@@ -162,11 +162,12 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 
 ############################################################
 	
-	returnLm = function(foldChangesMatrix, y, set1, set2, design, colData){
+	returnLm = function(foldChangesMatrix, y, set1, set2, designNull, designFull, colData){
 
 		numberGenes = dim(foldChangesMatrix)[1]
 		numberIndiv = dim(foldChangesMatrix)[2]
-		glm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), varExplained=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
+		# glm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), varExplained=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
+		glm_testResults = data.frame(beta=rep(1,numberGenes), CI95_L=rep(1,numberGenes), CI95_U=rep(1,numberGenes), varExplainedNull=rep(1,numberGenes), varExplainedFull=rep(1,numberGenes), nullAIC=rep(1,numberGenes), fullAIC=rep(1,numberGenes), diffAIC=rep(1,numberGenes), pvalue=rep(1,numberGenes), pvalue.adj=rep(1,numberGenes))
 		rownames(glm_testResults) = rownames(foldChangesMatrix)
 
 		lmp = function (modelobject) {
@@ -184,36 +185,45 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 				cat(paste(gene, ",", sep=""))
 			}
 
-			designFormula = as.formula(paste("foldChangesMatrix[gene,] ~", design))
+			# designFormula = as.formula(paste("foldChangesMatrix[gene,] ~", design))
+			designFormulaNull = as.formula(paste("foldChangesMatrix[gene,] ~", designNull))
+			designFormulaFull = as.formula(paste("foldChangesMatrix[gene,] ~", designFull))
 			# print(designFormula)
-			geneGlm = lm(designFormula, data=colData)
+			geneGlmNull = lm(designFormulaNull, data=colData)
+			geneGlmFull = lm(designFormulaFull, data=colData)
 			# geneGlm = glm(designFormula, data=colData, family="gaussian" )
 			# geneGlm = glm(foldChangesMatrix[gene,] ~ design, data=colData, family="gaussian" )
-			geneGlmConfint = suppressMessages(confint(geneGlm))
+			geneGlmConfint = suppressMessages(confint(geneGlmFull))
 
-			geneGlmSumm = summary(geneGlm)
+			geneGlmNullSumm = summary(geneGlmNull)
+			geneGlmFullSumm = summary(geneGlmFull)
 			# geneGlmSumm = summary(glm(designFormula, data=colData, family="gaussian" ))
 			# geneGlmSumm = summary(glm(foldChangesMatrix[gene,] ~ design, data=colData, family="gaussian" ))
-			coefficients = length(geneGlmSumm$coefficients[,1])
+			coefficients = dim(geneGlmFullSumm$coefficients)
+			# coefficients = length(geneGlmSumm$coefficients[,1])
 			# beta = geneGlmSumm$coefficients[[2]]
-			beta = geneGlmSumm$coefficients[,1][[coefficients]]
+			beta = geneGlmFullSumm$coefficients[,1][[coefficients[1]]]
 			ci95L = geneGlmConfint[[2]]
 			ci95U = geneGlmConfint[[4]]
-			varianceExplained = geneGlmSumm$r.squared # $adj.r.squared
+			varianceExplainedNull = geneGlmNullSumm$r.squared # $adj.r.squared
+			varianceExplainedFull = geneGlmFullSumm$r.squared
 
-			# pvalue = geneGlmSumm$coefficients[,4][[coefficients]]
-			pvalue = lmp(geneGlm)
+			null_AIC = AIC(geneGlmNull)
+			full_AIC = AIC(geneGlmFull)
+			diff_AIC = abs(null_AIC - full_AIC)
 
-			glm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, varExplained=varianceExplained, pvalue=pvalue, pvalue.adj=0 )
+			pvalue = lmp(geneGlmFull)
 
-			
+			# cat(beta, ci95L, ci95U, null_AIC, full_AIC, diff_AIC, pvalue, "\n\n")
+			# glm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, varExplained=varianceExplained, pvalue=pvalue, pvalue.adj=0 )
+			glm_testResults[gene,] = c(beta=beta, CI95L=ci95L, CI95U=ci95U, varExplainedNull=varianceExplainedNull, varExplainedFull=varianceExplainedFull, nullAIC=null_AIC, fullAIC=full_AIC, diffAIC=diff_AIC, pvalue=pvalue, pvalue.adj=0 )
 
 		}
 
 		cat("Done! \n")
 
 		pvaladj = p.adjust(glm_testResults$pvalue, method="BH")
-		glm_testResults[,6] =  pvaladj
+		glm_testResults[,10] =  pvaladj
 		
 		glm_testResults
 	}
@@ -316,7 +326,7 @@ foldChangeTest = function(Matrix, object, test, howMany, set1, set2, y, onWhich,
 			foldChangesMatrix = returnFoldChangesPerIndv(matrixIn=Matrix, numberGenes=numberGenes, numberSamples=numberSamples, set1=set1, set2=set2, howMany=howMany)
 			returnLm(foldChangesMatrix, y, set1, set2, design, colData=colData)
 		} else {
-			returnLm(Matrix, y, set1, set2, design, colData=colData)
+			returnLm(Matrix, y, set1, set2,  designNull, designFull, colData=colData)
 
 		}
 
